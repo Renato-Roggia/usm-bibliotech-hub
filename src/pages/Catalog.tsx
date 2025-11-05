@@ -79,7 +79,6 @@ export default function Catalog() {
   const handleBorrow = async (libroId: string, titulo: string) => {
     try {
       const { error } = await supabase.from("prestamos").insert({
-        usuario_id: "00000000-0000-0000-0000-000000000000",
         libro_id: libroId,
         estado: "activo",
       });

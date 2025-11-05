@@ -1,9 +1,7 @@
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { LogOut, Menu, X } from "lucide-react";
+import { Menu, X, User } from "lucide-react";
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 import logoUsm from "@/assets/logo-usm.png";
 
 interface LayoutProps {
@@ -13,21 +11,6 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
-  const navigate = useNavigate();
-  const { toast } = useToast();
-
-  const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      toast({
-        title: "Error",
-        description: "Error al cerrar sesión",
-        variant: "destructive",
-      });
-    } else {
-      navigate("/auth");
-    }
-  };
 
   const navItems = [
     { path: "/", label: "Inicio" },
@@ -65,15 +48,9 @@ export default function Layout({ children }: LayoutProps) {
           </nav>
 
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleLogout}
-              className="hidden md:flex items-center gap-2"
-            >
-              <LogOut className="h-4 w-4" />
-              Cerrar Sesión
-            </Button>
+            <div className="hidden md:flex items-center justify-center h-9 w-9 rounded-full bg-primary/10">
+              <User className="h-5 w-5 text-primary" />
+            </div>
 
             {/* Mobile Menu Button */}
             <Button
@@ -105,15 +82,6 @@ export default function Layout({ children }: LayoutProps) {
                   {item.label}
                 </Link>
               ))}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleLogout}
-                className="flex items-center gap-2 justify-center mt-2"
-              >
-                <LogOut className="h-4 w-4" />
-                Cerrar Sesión
-              </Button>
             </nav>
           </div>
         )}

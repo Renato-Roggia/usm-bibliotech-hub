@@ -97,7 +97,7 @@ export type Database = {
           fecha_prestamo: string | null
           id: string
           libro_id: string
-          usuario_id: string
+          usuario_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -106,7 +106,7 @@ export type Database = {
           fecha_prestamo?: string | null
           id?: string
           libro_id: string
-          usuario_id: string
+          usuario_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -115,7 +115,7 @@ export type Database = {
           fecha_prestamo?: string | null
           id?: string
           libro_id?: string
-          usuario_id?: string
+          usuario_id?: string | null
         }
         Relationships: [
           {
@@ -164,7 +164,7 @@ export type Database = {
           hora_inicio: string
           id: string
           sala_id: string
-          usuario_id: string
+          usuario_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -174,7 +174,7 @@ export type Database = {
           hora_inicio: string
           id?: string
           sala_id: string
-          usuario_id: string
+          usuario_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -184,7 +184,7 @@ export type Database = {
           hora_inicio?: string
           id?: string
           sala_id?: string
-          usuario_id?: string
+          usuario_id?: string | null
         }
         Relationships: [
           {

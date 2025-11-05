@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { Clock } from "lucide-react";
 
 interface Sala {
   id: string;
@@ -21,22 +22,43 @@ interface Sala {
   tiene_energia: boolean;
 }
 
+interface Reserva {
+  id: string;
+  sala_id: string;
+  fecha: string;
+  hora_inicio: string;
+  hora_fin: string;
+  estado: string;
+}
+
+interface TimeSlot {
+  time: string;
+  available: boolean;
+  selected: boolean;
+}
+
 export default function Rooms() {
   const [salas, setSalas] = useState<Sala[]>([]);
   const [filteredSalas, setFilteredSalas] = useState<Sala[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Date>();
-  const [selectedTime, setSelectedTime] = useState("");
-  const [duration, setDuration] = useState("2");
+  const [reservas, setReservas] = useState<Reserva[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [campus, setCampus] = useState("all");
   const [capacity, setCapacity] = useState("all");
   const [needsAccessible, setNeedsAccessible] = useState(false);
   const [needsPower, setNeedsPower] = useState(false);
+  const [selectedSlots, setSelectedSlots] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   useEffect(() => {
     fetchSalas();
   }, []);
+
+  useEffect(() => {
+    if (selectedDate) {
+      fetchReservas();
+    }
+  }, [selectedDate]);
 
   useEffect(() => {
     filterSalas();
@@ -62,6 +84,28 @@ export default function Rooms() {
     }
   };
 
+  const fetchReservas = async () => {
+    if (!selectedDate) return;
+    
+    try {
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
+      const { data, error } = await supabase
+        .from("reservas")
+        .select("*")
+        .eq("fecha", dateStr)
+        .eq("estado", "activa");
+
+      if (error) throw error;
+      setReservas(data || []);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las reservas",
+        variant: "destructive",
+      });
+    }
+  };
+
   const filterSalas = () => {
     let filtered = salas;
 
@@ -84,24 +128,121 @@ export default function Rooms() {
     setFilteredSalas(filtered);
   };
 
+  const generateTimeSlots = (salaId: string): TimeSlot[] => {
+    const slots: TimeSlot[] = [];
+    
+    // Generate slots from 8:00 to 20:00 (every 30 minutes)
+    for (let hour = 8; hour < 20; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
+        const timeStr = `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
+        
+        // Check if this slot is reserved
+        const isReserved = reservas.some((reserva) => {
+          if (reserva.sala_id !== salaId) return false;
+          
+          const slotTime = `${timeStr}:00`;
+          const slotMinutes = hour * 60 + minute;
+          
+          const startParts = reserva.hora_inicio.split(":");
+          const startMinutes = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
+          
+          const endParts = reserva.hora_fin.split(":");
+          const endMinutes = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
+          
+          return slotMinutes >= startMinutes && slotMinutes < endMinutes;
+        });
+        
+        slots.push({
+          time: timeStr,
+          available: !isReserved,
+          selected: selectedSlots[salaId]?.includes(timeStr) || false,
+        });
+      }
+    }
+    
+    return slots;
+  };
+
+  const handleSlotClick = (salaId: string, time: string, available: boolean) => {
+    if (!available) return;
+
+    const currentSlots = selectedSlots[salaId] || [];
+    const slotIndex = currentSlots.indexOf(time);
+
+    if (slotIndex > -1) {
+      // Deselect slot
+      const newSlots = currentSlots.filter((t) => t !== time);
+      setSelectedSlots({ ...selectedSlots, [salaId]: newSlots });
+    } else {
+      // Check if adding this slot would exceed 2 hours (4 slots)
+      if (currentSlots.length >= 4) {
+        toast({
+          title: "Máximo alcanzado",
+          description: "Solo puedes reservar hasta 2 horas (4 bloques de 30 minutos)",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Add slot
+      const newSlots = [...currentSlots, time].sort();
+      
+      // Check if slots are consecutive
+      if (!areSlotsConsecutive(newSlots)) {
+        toast({
+          title: "Bloques no consecutivos",
+          description: "Debes seleccionar bloques de tiempo consecutivos",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setSelectedSlots({ ...selectedSlots, [salaId]: newSlots });
+    }
+  };
+
+  const areSlotsConsecutive = (slots: string[]): boolean => {
+    if (slots.length <= 1) return true;
+
+    const sortedSlots = [...slots].sort();
+    for (let i = 0; i < sortedSlots.length - 1; i++) {
+      const [h1, m1] = sortedSlots[i].split(":").map(Number);
+      const [h2, m2] = sortedSlots[i + 1].split(":").map(Number);
+      
+      const minutes1 = h1 * 60 + m1;
+      const minutes2 = h2 * 60 + m2;
+      
+      if (minutes2 - minutes1 !== 30) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   const handleReserve = async (salaId: string, nombreSala: string) => {
-    if (!selectedDate || !selectedTime) {
+    const slots = selectedSlots[salaId];
+    
+    if (!slots || slots.length === 0) {
       toast({
         title: "Error",
-        description: "Debes seleccionar fecha y hora",
+        description: "Debes seleccionar al menos un bloque de tiempo",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      const [hours, minutes] = selectedTime.split(":");
-      const startTime = `${hours}:${minutes}:00`;
-      const endHours = parseInt(hours) + parseInt(duration);
-      const endTime = `${endHours.toString().padStart(2, "0")}:${minutes}:00`;
+      const sortedSlots = [...slots].sort();
+      const startTime = `${sortedSlots[0]}:00`;
+      
+      // Calculate end time
+      const [lastHour, lastMinute] = sortedSlots[sortedSlots.length - 1].split(":").map(Number);
+      const endMinutes = lastHour * 60 + lastMinute + 30;
+      const endHour = Math.floor(endMinutes / 60);
+      const endMin = endMinutes % 60;
+      const endTime = `${endHour.toString().padStart(2, "0")}:${endMin.toString().padStart(2, "0")}:00`;
 
       const { error } = await supabase.from("reservas").insert({
-        usuario_id: "00000000-0000-0000-0000-000000000000",
         sala_id: salaId,
         fecha: format(selectedDate, "yyyy-MM-dd"),
         hora_inicio: startTime,
@@ -113,11 +254,12 @@ export default function Rooms() {
 
       toast({
         title: "¡Reserva confirmada!",
-        description: `Has reservado ${nombreSala} para el ${format(selectedDate, "dd/MM/yyyy", { locale: es })} de ${selectedTime} a ${endTime}`,
+        description: `Has reservado ${nombreSala} para el ${format(selectedDate, "dd/MM/yyyy", { locale: es })} de ${sortedSlots[0]} a ${endHour.toString().padStart(2, "0")}:${endMin.toString().padStart(2, "0")}`,
       });
 
-      setSelectedDate(undefined);
-      setSelectedTime("");
+      // Clear selected slots for this room
+      setSelectedSlots({ ...selectedSlots, [salaId]: [] });
+      fetchReservas();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -128,11 +270,6 @@ export default function Rooms() {
   };
 
   const campusList = ["all", ...Array.from(new Set(salas.map((s) => s.campus)))];
-  const timeSlots = Array.from({ length: 25 }, (_, i) => {
-    const hour = Math.floor(i / 2) + 8;
-    const minutes = (i % 2) * 30;
-    return `${hour.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
-  });
 
   if (loading) {
     return (
@@ -146,13 +283,24 @@ export default function Rooms() {
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold mb-6">Reserva de Salas de Estudio</h1>
 
-      <div className="grid lg:grid-cols-3 gap-6 mb-8">
+      <div className="grid lg:grid-cols-4 gap-6 mb-8">
         {/* Filters Section */}
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle>Filtros</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div>
+              <Label>Fecha</Label>
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={(date) => date && setSelectedDate(date)}
+                disabled={(date) => date < new Date()}
+                className="rounded-md border"
+              />
+            </div>
+
             <div>
               <Label>Campus</Label>
               <Select value={campus} onValueChange={setCampus}>
@@ -203,91 +351,82 @@ export default function Rooms() {
               />
               <Label htmlFor="power">Energía disponible</Label>
             </div>
-
-            <div>
-              <Label>Fecha</Label>
-              <Calendar
-                mode="single"
-                selected={selectedDate}
-                onSelect={setSelectedDate}
-                disabled={(date) => date < new Date()}
-                className="rounded-md border"
-              />
-            </div>
-
-            <div>
-              <Label>Hora de inicio</Label>
-              <Select value={selectedTime} onValueChange={setSelectedTime}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccionar hora" />
-                </SelectTrigger>
-                <SelectContent>
-                  {timeSlots.map((time) => (
-                    <SelectItem key={time} value={time}>
-                      {time}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>Duración (horas)</Label>
-              <Select value={duration} onValueChange={setDuration}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 hora</SelectItem>
-                  <SelectItem value="2">2 horas</SelectItem>
-                  <SelectItem value="3">3 horas</SelectItem>
-                  <SelectItem value="4">4 horas</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </CardContent>
         </Card>
 
-        {/* Rooms Grid */}
-        <div className="lg:col-span-2">
-          <h2 className="text-xl font-semibold mb-4">
-            Salas disponibles ({filteredSalas.length})
-          </h2>
+        {/* Rooms with Time Slots */}
+        <div className="lg:col-span-3">
+          <div className="mb-4 flex items-center gap-2">
+            <Clock className="h-5 w-5 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              Selecciona bloques de 30 minutos (máximo 2 horas por reserva)
+            </p>
+          </div>
+          
           {filteredSalas.length === 0 ? (
             <p className="text-center text-muted-foreground">
               No se encontraron salas con los filtros seleccionados
             </p>
           ) : (
-            <div className="grid gap-4">
-              {filteredSalas.map((sala) => (
-                <Card key={sala.id}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <CardTitle>{sala.nombre_sala}</CardTitle>
-                        <CardDescription>{sala.campus}</CardDescription>
+            <div className="space-y-6">
+              {filteredSalas.map((sala) => {
+                const timeSlots = generateTimeSlots(sala.id);
+                const selectedCount = selectedSlots[sala.id]?.length || 0;
+
+                return (
+                  <Card key={sala.id}>
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <CardTitle>{sala.nombre_sala}</CardTitle>
+                          <CardDescription>{sala.campus}</CardDescription>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <Badge>{sala.tipo}</Badge>
+                          {selectedCount > 0 && (
+                            <Badge variant="secondary">
+                              {selectedCount} bloque{selectedCount > 1 ? 's' : ''} ({selectedCount * 0.5}h)
+                            </Badge>
+                          )}
+                        </div>
                       </div>
-                      <Badge>{sala.tipo}</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      <Badge variant="outline">Capacidad: {sala.capacidad}</Badge>
-                      {sala.tiene_asiento_accesible && (
-                        <Badge variant="outline">Accesible</Badge>
-                      )}
-                      {sala.tiene_energia && <Badge variant="outline">Energía</Badge>}
-                    </div>
-                    <Button
-                      className="w-full"
-                      onClick={() => handleReserve(sala.id, sala.nombre_sala)}
-                      disabled={!selectedDate || !selectedTime}
-                    >
-                      Reservar Sala
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        <Badge variant="outline">Capacidad: {sala.capacidad}</Badge>
+                        {sala.tiene_asiento_accesible && (
+                          <Badge variant="outline">Accesible</Badge>
+                        )}
+                        {sala.tiene_energia && <Badge variant="outline">Energía</Badge>}
+                      </div>
+
+                      {/* Time Slots Grid */}
+                      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-12 gap-2 mb-4">
+                        {timeSlots.map((slot) => (
+                          <Button
+                            key={slot.time}
+                            variant={slot.selected ? "default" : slot.available ? "outline" : "secondary"}
+                            size="sm"
+                            onClick={() => handleSlotClick(sala.id, slot.time, slot.available)}
+                            disabled={!slot.available}
+                            className="text-xs px-2 py-1 h-auto"
+                          >
+                            {slot.time}
+                          </Button>
+                        ))}
+                      </div>
+
+                      <Button
+                        className="w-full"
+                        onClick={() => handleReserve(sala.id, sala.nombre_sala)}
+                        disabled={!selectedSlots[sala.id] || selectedSlots[sala.id].length === 0}
+                      >
+                        Confirmar Reserva
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>
