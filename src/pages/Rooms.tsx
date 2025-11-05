@@ -8,7 +8,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -34,7 +33,6 @@ export default function Rooms() {
   const [needsPower, setNeedsPower] = useState(false);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const { user } = useAuth();
 
   useEffect(() => {
     fetchSalas();
@@ -87,15 +85,6 @@ export default function Rooms() {
   };
 
   const handleReserve = async (salaId: string, nombreSala: string) => {
-    if (!user) {
-      toast({
-        title: "Error",
-        description: "Debes iniciar sesión para reservar una sala",
-        variant: "destructive",
-      });
-      return;
-    }
-
     if (!selectedDate || !selectedTime) {
       toast({
         title: "Error",
@@ -112,7 +101,7 @@ export default function Rooms() {
       const endTime = `${endHours.toString().padStart(2, "0")}:${minutes}:00`;
 
       const { error } = await supabase.from("reservas").insert({
-        usuario_id: user.id,
+        usuario_id: "00000000-0000-0000-0000-000000000000",
         sala_id: salaId,
         fecha: format(selectedDate, "yyyy-MM-dd"),
         hora_inicio: startTime,
@@ -139,9 +128,10 @@ export default function Rooms() {
   };
 
   const campusList = ["all", ...Array.from(new Set(salas.map((s) => s.campus)))];
-  const timeSlots = Array.from({ length: 13 }, (_, i) => {
-    const hour = i + 8;
-    return `${hour.toString().padStart(2, "0")}:00`;
+  const timeSlots = Array.from({ length: 25 }, (_, i) => {
+    const hour = Math.floor(i / 2) + 8;
+    const minutes = (i % 2) * 30;
+    return `${hour.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
   });
 
   if (loading) {

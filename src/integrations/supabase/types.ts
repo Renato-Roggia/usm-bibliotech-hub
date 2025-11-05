@@ -55,6 +55,8 @@ export type Database = {
           autor: string
           categoria: string
           created_at: string | null
+          descripcion: string | null
+          editorial: string | null
           estado: string
           id: string
           imagen_url: string | null
@@ -65,6 +67,8 @@ export type Database = {
           autor: string
           categoria: string
           created_at?: string | null
+          descripcion?: string | null
+          editorial?: string | null
           estado?: string
           id?: string
           imagen_url?: string | null
@@ -75,6 +79,8 @@ export type Database = {
           autor?: string
           categoria?: string
           created_at?: string | null
+          descripcion?: string | null
+          editorial?: string | null
           estado?: string
           id?: string
           imagen_url?: string | null

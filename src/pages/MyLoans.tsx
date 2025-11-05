@@ -6,7 +6,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BookOpen, Calendar, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -40,14 +39,11 @@ export default function MyLoans() {
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const { user } = useAuth();
 
   useEffect(() => {
-    if (user) {
-      fetchPrestamos();
-      fetchReservas();
-    }
-  }, [user]);
+    fetchPrestamos();
+    fetchReservas();
+  }, []);
 
   const fetchPrestamos = async () => {
     try {
@@ -60,7 +56,7 @@ export default function MyLoans() {
             autor
           )
         `)
-        .eq("usuario_id", user?.id)
+        .eq("usuario_id", "00000000-0000-0000-0000-000000000000")
         .eq("estado", "activo")
         .order("fecha_prestamo", { ascending: false });
 
@@ -88,7 +84,7 @@ export default function MyLoans() {
             campus
           )
         `)
-        .eq("usuario_id", user?.id)
+        .eq("usuario_id", "00000000-0000-0000-0000-000000000000")
         .eq("estado", "activa")
         .order("fecha", { ascending: false });
 
