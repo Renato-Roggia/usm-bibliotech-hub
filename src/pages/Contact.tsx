@@ -27,10 +27,10 @@ export default function Contact() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-2">
-              Casa Central Valparaíso
+              Campus San Joaquin
             </p>
             <p className="text-sm">
-              Av. España 1680, Valparaíso, Chile
+              Av. Vicuña Mackenna 3939, 8940897 San Joaquín, Región Metropolitana
             </p>
           </CardContent>
         </Card>
