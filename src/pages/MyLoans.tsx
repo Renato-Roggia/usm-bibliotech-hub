@@ -83,7 +83,6 @@ export default function MyLoans() {
             campus
           )
         `)
-        .eq("usuario_id", "00000000-0000-0000-0000-000000000000")
         .eq("estado", "activa")
         .order("fecha", { ascending: false });
 
